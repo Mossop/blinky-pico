@@ -1,3 +1,5 @@
+from .color import mix_colors
+
 def assert_int(val):
     if not isinstance(val, int):
         raise Exception("'%s' is not an integer" % val)
@@ -17,22 +19,6 @@ def assert_color(val):
         raise Exception("'%s' is not a color" % val)
 
     return (val[0], val[1], val[2])
-
-
-def mix_colors(a, b, offset):
-    def mix_val(a, b, offset):
-        return int(a + ((b - a) * offset))
-
-    if offset <= 0:
-        return a
-    if offset >= 1:
-        return b
-
-    return (
-        mix_val(a[0], b[0], offset),
-        mix_val(a[1], b[1], offset),
-        mix_val(a[2], b[2], offset),
-    )
 
 
 class Pattern:

@@ -20,3 +20,6 @@ Also copy the `code.py` and `blinky` directory onto the device. It should run on
 run through the animation will pull any new config file.
 
 Understanding the config format is currently left as an exercise, it is parsed in [blinky/animation.py](blinky/animation.py)
+
+The `test` script runs the animation in CPython on a regular computer displaying the LEDs as lines
+of coloured asterisks.
