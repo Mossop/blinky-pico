@@ -53,7 +53,7 @@ class Pattern:
         self.led_specs = []
         def add_led(index, offset):
             if index >= 0 and index < len(self.machine.leds):
-                self.led_specs.append((index, offset))
+                self.led_specs.append((index, offset % animation.duration))
 
         if "leds" not in data:
             for i in range(len(self.machine.leds)):
