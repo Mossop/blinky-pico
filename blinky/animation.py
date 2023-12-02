@@ -1,5 +1,12 @@
 from .color import mix_colors
 
+def assert_str(val):
+    if not isinstance(val, str):
+        raise Exception("'%s' is not an string" % val)
+
+    return val
+
+
 def assert_int(val):
     if not isinstance(val, int):
         raise Exception("'%s' is not an integer" % val)
@@ -22,107 +29,54 @@ def assert_color(val):
 
 
 class Pattern:
-    @classmethod
-    def parse(cls, animation, data):
-        if data["type"] in PATTERNS:
-            return PATTERNS[data["type"]](animation, data)
+    def __init__(self, animation, index, pattern_count, offset, data):
+        self.animation = animation
+        self.index = index
+        self.pattern_count = pattern_count
+        self.offset = offset
 
-        raise Exception("Unknown pattern: '%s'" % data["type"])
+        if assert_str(data["type"]) in PATTERNS:
+            self.instance = PATTERNS[data["type"]](self, data["config"] if "config" in data else None)
+        else:
+            raise Exception("Unknown pattern type: '%s'" % data["type"])
 
     @property
     def machine(self):
         return self.animation.machine
 
-    def __init__(self, animation, data):
-        self.animation = animation
+    def init(self):
+        self.instance.init()
 
-        self.led_specs = []
-        def add_led(index, offset):
-            if index >= 0 and index < len(self.machine.leds):
-                self.led_specs.append((index, offset % animation.duration))
-
-        if "leds" not in data:
-            for i in range(len(self.machine.leds)):
-                add_led(i, 0)
-            return
-
-        def parse_led_spec(spec):
-            if isinstance(spec, int):
-                self.led_specs.append((spec, 0))
-                return
-
-            offset = 0
-            if "offset" in spec:
-                offset = assert_int(spec["offset"])
-
-            offset_adjust = 0
-            if "offsetAdjust" in spec:
-                offset_adjust = assert_int(spec["offsetAdjust"])
-
-            repeat = None
-            if "repeat" in spec:
-                repeat = assert_int(spec["repeat"])
-
-            if "index" in spec:
-                index = assert_int(spec["index"])
-
-                if repeat is not None:
-                    while index < len(self.machine.leds):
-                        add_led(index, offset)
-                        index += repeat
-                else:
-                    add_led(index, offset)
-
-                return
-
-            if "start" in spec:
-                start = assert_int(spec["start"])
-
-                length = 1
-                if "length" in spec:
-                    length = assert_int(spec["length"])
-
-                skip = 0
-                if "skip" in spec:
-                    skip = assert_int(spec["skip"])
-
-                while start < len(self.machine.leds) and (repeat is None or repeat >= 0):
-                    for n in range(length):
-                        add_led(start + n, offset)
-
-                    start += length + skip
-                    offset += offset_adjust
-
-                    if repeat is not None:
-                        repeat -= 1
-
-                return
-
-            raise Exception("Unknown led specification")
-
-        if isinstance(data["leds"], list):
-            for led_spec in data["leds"]:
-                parse_led_spec(led_spec)
-        else:
-            parse_led_spec(data["leds"])
+    def apply(self, offset):
+        self.instance.apply(offset + self.offset)
 
 
-    def leds(self, offset):
-        for (led, led_offset) in self.led_specs:
-            yield (led, (led_offset + offset) % self.animation.duration)
+class PatternInstance:
+    def __init__(self, pattern, data):
+        self.pattern = pattern
+
+    @property
+    def machine(self):
+        return self.pattern.animation.machine
 
     def init(self):
         pass
 
+    def leds(self):
+        led = self.pattern.index
+        while led < len(self.pattern.animation.machine.leds):
+            yield led
+            led += self.pattern.pattern_count
 
-class LookupPattern(Pattern):
-    def __init__(self, animation, data):
-        Pattern.__init__(self, animation, data)
+
+class LookupPattern(PatternInstance):
+    def __init__(self, pattern, data):
+        PatternInstance.__init__(self, pattern, data)
         self.colors = []
 
     def apply(self, offset):
-        for (led, led_offset) in self.leds(offset):
-            self.machine.leds[led] = self.colors[led_offset % len(self.colors)]
+        for led in self.leds():
+            self.machine.leds[led] = self.colors[offset % len(self.colors)]
 
 
 class Colors(LookupPattern):
@@ -186,7 +140,33 @@ class Animation:
         self.interval = assert_int(data["interval"])
         self.duration = assert_int(data["duration"])
 
-        self.patterns = [Pattern.parse(self, p) for p in data["patterns"]]
+        self.patterns = []
+
+        pattern_count = 0
+        for pattern in assert_list(data["patterns"]):
+            if "repeat" in pattern:
+                pattern_count += assert_int(pattern["repeat"])
+            else:
+                pattern_count += 1
+
+        index = 0
+        for pattern in assert_list(data["patterns"]):
+            repeat = 1
+            if "repeat" in pattern:
+                repeat = assert_int(pattern["repeat"])
+
+            offset_adjust = 0
+            if "offsetAdjust" in pattern:
+                offset_adjust = assert_int(pattern["offsetAdjust"])
+
+            offset = 0
+            if "offset" in pattern:
+                offset = assert_int(pattern["offset"])
+
+            for _ in range(repeat):
+                self.patterns.append(Pattern(self, index, pattern_count, offset, pattern))
+                offset += offset_adjust
+                index += 1
 
     def run(self):
         self.machine.leds.fill((0, 0, 0))
