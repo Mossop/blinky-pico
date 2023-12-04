@@ -4,6 +4,7 @@ import sys
 import requests
 from machine import Pin
 from neopixel import NeoPixel
+import _thread
 
 from blinky import CONFIG, Logger, main
 
@@ -35,13 +36,37 @@ class Pixels:
         self.leds.write()
 
 
+def pull_animations(url, last_etag = None):
+    led = Pin('LED', Pin.OUT)
+    led.value(True)
+
+    try:
+        headers = {}
+        if last_etag is not None:
+            headers["If-None-Match"] = last_etag
+        response = requests.get(url, headers=headers)
+
+        try:
+            if response.status_code == 200:
+                if "ETag" in response.headers:
+                    last_etag = response.headers["ETag"]
+
+                return (response.json(), last_etag)
+        finally:
+            response.close()
+
+        return (None, last_etag)
+    finally:
+        led.value(False)
+
+
 class PicoMachine:
-    def __init__(self):
+    def __init__(self, animations):
         self.log = Logger(self)
         self.led = Pin('LED', Pin.OUT)
         self.leds = Pixels(self, CONFIG.leds)
         self.leds.write()
-        self.last_etag = None
+        self.animations = animations
 
         self.wlan = network.WLAN(network.STA_IF)
         self.led.value(True)
@@ -54,7 +79,7 @@ class PicoMachine:
                     while self.wlan.status() < 3:
                         time.sleep_ms(1000)
 
-                return
+                break
             except:
                 self.wlan.active(False)
                 time.sleep_ms(5000)
@@ -72,26 +97,23 @@ class PicoMachine:
         sys.print_exception(exc)
 
     def pull_animations(self):
-        self.led.value(True)
-
-        try:
-            headers = {}
-            if self.last_etag is not None:
-                headers["If-None-Match"] = self.last_etag
-            response = requests.get(CONFIG.config, headers=headers)
-
-            try:
-                if response.status_code == 200:
-                    if "ETag" in response.headers:
-                        self.last_etag = response.headers["ETag"]
-
-                    return response.json()
-            finally:
-                response.close()
-
-            return None
-        finally:
-            self.led.value(False)
+        animations = self.animations
+        self.animations = None
+        return animations
 
 
-main(PicoMachine())
+(animations, last_etag) = pull_animations(CONFIG.config)
+machine = PicoMachine(animations)
+
+
+def poll_config(url, last_etag):
+    while True:
+        with machine.log.safe("Polling for new animations"):
+            (data, last_etag) = pull_animations(url, last_etag)
+            if data is not None:
+                machine.animations = data
+        time.sleep_ms(30000)
+
+
+_thread.start_new_thread(main, (machine,))
+poll_config(CONFIG.config, last_etag)
