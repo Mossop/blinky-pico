@@ -184,12 +184,25 @@ class Animation:
     def run(self):
         self.machine.leds.fill((0, 0, 0))
 
+        last = None
+
         for n in range(self.duration):
             for pattern in self.patterns:
                 pattern.apply(n)
-            self.machine.leds.write()
 
-            self.machine.sleep_ms(self.interval)
+            if n > 0:
+                now = self.machine.ticks()
+                time_spent = self.machine.ticks_diff(now, last)
+                if time_spent > self.interval:
+                    self.machine.log.warn("Patterns took too long to apply (%sms over)" % (time_spent - self.interval))
+                    last = now
+                else:
+                    self.machine.sleep_ms(self.interval - time_spent)
+                    last = self.machine.ticks()
+            else:
+                last = self.machine.ticks()
+
+            self.machine.leds.write()
 
 
 def log_counts(log):
