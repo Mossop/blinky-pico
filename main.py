@@ -11,9 +11,10 @@ from blinky import CONFIG, Logger, main
 class Pixels:
     def __init__(self, machine, count):
         self.machine = machine
+        self.count = count
         self.leds = NeoPixel(Pin.board.GP15, count)
-        self.leds.fill((0, 0, 0))
-        self.leds.write()
+        self.fill((0, 0, 0))
+        self.write()
 
     def __getitem__(self, index):
         (g, r, b) = self.leds[index]
@@ -24,7 +25,7 @@ class Pixels:
         self.leds[index] = (g, r, b)
 
     def __len__(self):
-        return len(self.leds)
+        return self.count
 
     def fill(self, pixel):
         (r, g, b) = pixel
@@ -42,13 +43,21 @@ class PicoMachine:
         self.leds.write()
         self.last_etag = None
 
-        with self.log.logged("Connecting to Wifi"):
-            self.wlan = network.WLAN(network.STA_IF)
-            self.wlan.active(True)
-            self.wlan.connect(CONFIG.ssid, CONFIG.password)
+        self.wlan = network.WLAN(network.STA_IF)
+        self.led.value(True)
+        while True:
+            try:
+                with self.log.logged("Connecting to Wifi"):
+                    self.wlan.active(True)
+                    self.wlan.connect(CONFIG.ssid, CONFIG.password)
 
-            while self.wlan.status() < 3:
-                time.sleep_ms(1000)
+                    while self.wlan.status() < 3:
+                        time.sleep_ms(1000)
+
+                return
+            except:
+                self.wlan.active(False)
+                time.sleep_ms(5000)
 
     def sleep_ms(self, ms):
         time.sleep_ms(ms)
