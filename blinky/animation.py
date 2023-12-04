@@ -16,6 +16,13 @@ def assert_int(val):
     return val
 
 
+def assert_bool(val):
+    if not isinstance(val, bool):
+        raise Exception("'%s' is not a boolean" % val)
+
+    return val
+
+
 def assert_list(val):
     if not isinstance(val, list):
         raise Exception("'%s' is not a list" % val)
@@ -162,6 +169,42 @@ class NoopController(Controller):
     flex = 1
 
 
+class CometController(Controller):
+    key = "comet"
+    flex = 1
+    trail = 4
+    spacing = 20
+    reverse = False
+
+    def __init__(self, data):
+        super().__init__(data)
+        color = assert_color(data["color"])
+
+        if "trail" in data:
+            self.trail = assert_int(data["trail"])
+
+        if "spacing" in data:
+            self.spacing = assert_int(data["spacing"])
+
+        if "reverse" in data:
+            self.spacing = assert_bool(data["reverse"])
+
+        self.colors = []
+        for n in range(self.trail):
+            self.colors.append(mix_colors(color, (0, 0, 0), n / self.trail))
+
+        for n in range(self.spacing):
+            self.colors.append((0, 0, 0))
+
+
+    def apply(self, machine, leds, offset):
+        color_pos = offset % len(self.colors)
+        adjust = 1 if self.reverse else -1
+        for n in range(len(leds)):
+            machine.leds[leds[n]] = self.colors[color_pos % len(self.colors)]
+            color_pos += adjust
+
+
 class LookupController(Controller):
     def __init__(self, data):
         super().__init__(data)
@@ -223,7 +266,8 @@ CONTROLLERS = {
     for c in [
         Container,
         NoopController,
-        ColorsController
+        ColorsController,
+        CometController
     ]
 }
 
