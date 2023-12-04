@@ -285,6 +285,7 @@ class Animation:
 
         self.controller = Container(data)
         self.controller.assign_leds(list(range(len(machine.leds))))
+        self.offset = 0
 
     def run(self):
         self.machine.leds.fill((0, 0, 0))
@@ -292,7 +293,8 @@ class Animation:
         last = None
 
         for n in range(self.duration):
-            self.controller.apply(self.machine, None, n)
+            self.controller.apply(self.machine, None, self.offset)
+            self.offset += 1
 
             if n > 0:
                 now = self.machine.ticks()
