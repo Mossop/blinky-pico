@@ -7,7 +7,8 @@ from blinky import CONFIG, main, Logger
 
 
 class Pixels:
-    def __init__(self, count):
+    def __init__(self, machine, count):
+        self.machine = machine
         self.leds = []
         for _ in range(count):
             self.leds.append((255, 0, 0))
@@ -33,7 +34,7 @@ class Pixels:
 
 class DesktopMachine:
     def __init__(self):
-        self.leds = Pixels(CONFIG.leds)
+        self.leds = Pixels(self, CONFIG.leds)
         self.log = Logger(self)
 
     def sleep_ms(self, ms):

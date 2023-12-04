@@ -8,12 +8,37 @@ from neopixel import NeoPixel
 from blinky import CONFIG, Logger, main
 
 
+class Pixels:
+    def __init__(self, machine, count):
+        self.machine = machine
+        self.leds = NeoPixel(Pin.board.GP15, count)
+        self.leds.fill((0, 0, 0))
+        self.leds.write()
+
+    def __getitem__(self, index):
+        (g, r, b) = self.leds[index]
+        return (r, g, b)
+
+    def __setitem__(self, index, value):
+        (r, g, b) = value
+        self.leds[index] = (g, r, b)
+
+    def __len__(self):
+        return len(self.leds)
+
+    def fill(self, pixel):
+        (r, g, b) = pixel
+        self.leds.fill((g, r, b))
+
+    def write(self):
+        self.leds.write()
+
+
 class PicoMachine:
     def __init__(self):
         self.log = Logger(self)
         self.led = Pin('LED', Pin.OUT)
-        self.leds = NeoPixel(Pin.board.GP15, CONFIG.leds)
-        self.leds.fill((0, 0, 0))
+        self.leds = Pixels(self, CONFIG.leds)
         self.leds.write()
         self.last_etag = None
 

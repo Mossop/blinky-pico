@@ -101,4 +101,4 @@ def mix_colors_by_hsl(a, b, offset):
     return hsl_to_rgb(mixed)
 
 def mix_colors(a, b, offset):
-    return mix_colors_by_hsl(a, b, offset)
+    return mix_colors_by_rgb(a, b, offset)

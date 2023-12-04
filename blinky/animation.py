@@ -29,53 +29,54 @@ def assert_color(val):
 
 
 class Pattern:
-    def __init__(self, animation, index, pattern_count, offset, data):
+    @classmethod
+    def parse_pattern(cls, animation, data):
+        if assert_str(data["type"]) in PATTERNS:
+            return PATTERNS[data["type"]](animation, data["config"] if "config" in data else None)
+        else:
+            raise Exception("Unknown pattern type: '%s'" % data["type"])
+
+    def __init__(self, animation, index, pattern_count, offset, instance):
         self.animation = animation
         self.index = index
         self.pattern_count = pattern_count
         self.offset = offset
 
-        if assert_str(data["type"]) in PATTERNS:
-            self.instance = PATTERNS[data["type"]](self, data["config"] if "config" in data else None)
-        else:
-            raise Exception("Unknown pattern type: '%s'" % data["type"])
+        self.leds = []
+        led = index
+        while led < len(animation.machine.leds):
+            self.leds.append(led)
+            led += pattern_count
+
+        self.instance = instance
+
+    @property
+    def machine(self):
+        return self.animation.machine
+
+    def apply(self, offset):
+        self.instance.apply(self, offset + self.offset)
+
+
+class PatternInstance:
+    def __init__(self, animation, data):
+        self.animation = animation
 
     @property
     def machine(self):
         return self.animation.machine
 
     def init(self):
-        self.instance.init()
-
-    def apply(self, offset):
-        self.instance.apply(offset + self.offset)
-
-
-class PatternInstance:
-    def __init__(self, pattern, data):
-        self.pattern = pattern
-
-    @property
-    def machine(self):
-        return self.pattern.animation.machine
-
-    def init(self):
         pass
-
-    def leds(self):
-        led = self.pattern.index
-        while led < len(self.pattern.animation.machine.leds):
-            yield led
-            led += self.pattern.pattern_count
 
 
 class LookupPattern(PatternInstance):
-    def __init__(self, pattern, data):
-        PatternInstance.__init__(self, pattern, data)
+    def __init__(self, animation, data):
+        PatternInstance.__init__(self, animation, data)
         self.colors = []
 
-    def apply(self, offset):
-        for led in self.leds():
+    def apply(self, pattern, offset):
+        for led in pattern.leds:
             self.machine.leds[led] = self.colors[offset % len(self.colors)]
 
 
@@ -151,6 +152,8 @@ class Animation:
 
         index = 0
         for pattern in assert_list(data["patterns"]):
+            instance = Pattern.parse_pattern(self, pattern)
+
             repeat = 1
             if "repeat" in pattern:
                 repeat = assert_int(pattern["repeat"])
@@ -164,15 +167,12 @@ class Animation:
                 offset = assert_int(pattern["offset"])
 
             for _ in range(repeat):
-                self.patterns.append(Pattern(self, index, pattern_count, offset, pattern))
+                self.patterns.append(Pattern(self, index, pattern_count, offset, instance))
                 offset += offset_adjust
                 index += 1
 
     def run(self):
         self.machine.leds.fill((0, 0, 0))
-
-        for pattern in self.patterns:
-            pattern.init()
 
         for n in range(self.duration):
             for pattern in self.patterns:
