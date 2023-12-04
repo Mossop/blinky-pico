@@ -27,6 +27,8 @@ def assert_color(val):
 
     return (val[0], val[1], val[2])
 
+parsed_patterns = 0
+parsed_instances = 0
 
 class Pattern:
     @classmethod
@@ -37,6 +39,8 @@ class Pattern:
             raise Exception("Unknown pattern type: '%s'" % data["type"])
 
     def __init__(self, animation, index, pattern_count, offset, instance):
+        global parsed_patterns
+        parsed_patterns += 1
         self.animation = animation
         self.index = index
         self.pattern_count = pattern_count
@@ -60,6 +64,8 @@ class Pattern:
 
 class PatternInstance:
     def __init__(self, animation, data):
+        global parsed_instances
+        parsed_instances += 1
         self.animation = animation
 
     @property
@@ -134,9 +140,13 @@ PATTERNS = {
     ]
 }
 
+parsed_animations = 0
+
 
 class Animation:
     def __init__(self, machine, data):
+        global parsed_animations
+        parsed_animations += 1
         self.machine = machine
         self.interval = assert_int(data["interval"])
         self.duration = assert_int(data["duration"])
@@ -180,3 +190,12 @@ class Animation:
             self.machine.leds.write()
 
             self.machine.sleep_ms(self.interval)
+
+
+def log_counts(log):
+    global parsed_animations, parsed_patterns, parsed_instances
+
+    log.trace("Parsed %s animations with %s patterns and %s pattern instances" % (parsed_animations, parsed_patterns, parsed_instances))
+    parsed_animations = 0
+    parsed_patterns = 0
+    parsed_instances = 0

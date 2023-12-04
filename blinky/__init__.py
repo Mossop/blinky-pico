@@ -2,7 +2,7 @@ from time import sleep
 
 from .log import Logger
 from .config import CONFIG
-from .animation import Animation
+from .animation import Animation, log_counts
 
 def main(machine, loops = 0):
     count = 0
@@ -13,6 +13,7 @@ def main(machine, loops = 0):
             new_animations = machine.pull_animations()
             if new_animations is not None:
                 animations = [Animation(machine, d) for d in new_animations]
+                log_counts(machine.log)
 
         if animations is not None:
             for n in range(len(animations)):
