@@ -1,3 +1,5 @@
+import math
+
 from .color import mix_colors
 
 def assert_str(val):
@@ -27,72 +29,155 @@ def assert_color(val):
 
     return (val[0], val[1], val[2])
 
-parsed_patterns = 0
-parsed_instances = 0
-
-class Pattern:
-    @classmethod
-    def parse_pattern(cls, animation, data):
-        if assert_str(data["type"]) in PATTERNS:
-            return PATTERNS[data["type"]](animation, data["config"] if "config" in data else None)
-        else:
-            raise Exception("Unknown pattern type: '%s'" % data["type"])
-
-    def __init__(self, animation, index, pattern_count, offset, instance):
-        global parsed_patterns
-        parsed_patterns += 1
-        self.animation = animation
-        self.index = index
-        self.pattern_count = pattern_count
-        self.offset = offset
-
-        self.leds = []
-        led = index
-        while led < len(animation.machine.leds):
-            self.leds.append(led)
-            led += pattern_count
-
-        self.instance = instance
-
-    @property
-    def machine(self):
-        return self.animation.machine
-
-    def apply(self, offset):
-        self.instance.apply(self, offset + self.offset)
+parsed_controllers = 0
 
 
-class PatternInstance:
-    def __init__(self, animation, data):
-        global parsed_instances
-        parsed_instances += 1
-        self.animation = animation
+def parse_controller_sizing(controller, data):
+    flex = controller.flex
+    width = controller.width
 
-    @property
-    def machine(self):
-        return self.animation.machine
+    if "flex" in data:
+        flex = assert_int(data["flex"])
+        width = None
+    elif "width" in data:
+        width = assert_int(data["width"])
+        flex = None
 
-    def init(self):
+    if width is None and flex is None:
+        raise Exception("Controller must include either a width or flex")
+
+    return (width, flex)
+
+
+class Controller:
+    """A generic controller of a set of leds"""
+
+    flex = None
+    width = None
+    offset = 0
+
+    def __init__(self, data):
+        global parsed_controllers
+        parsed_controllers += 1
+
+        if "flex" in data:
+            self.flex = assert_int(data["flex"])
+            self.width = None
+        elif "width" in data:
+            self.width = assert_int(data["width"])
+            self.flex = None
+
+        if self.width is None and self.flex is None:
+            raise Exception("Controller must include either a width or flex")
+
+        if "offset" in data:
+            self.offset = assert_int(data["offset"])
+
+    def apply(self, machine, leds, offset):
         pass
 
+    @staticmethod
+    def parse_controller(data):
+        if assert_str(data["type"]) in CONTROLLERS:
+            return CONTROLLERS[data["type"]](data)
+        else:
+            raise Exception("Unknown controller type: '%s'" % data["type"])
 
-class LookupPattern(PatternInstance):
-    def __init__(self, animation, data):
-        PatternInstance.__init__(self, animation, data)
+
+class Container(Controller):
+    """A container of controllers"""
+
+    key = "container"
+
+    flex = 1
+    width = None
+
+    def __init__(self, data):
+        super().__init__(data)
+
+        self.controllers = [Controller.parse_controller(d) for d in assert_list(data["controllers"])]
+
+        if "offsetAdjust" in data:
+            self.offset_adjust = assert_int(data["offsetAdjust"])
+        else:
+            self.offset_adjust = 0
+
+    def clone(self):
+        clone = Container({})
+        clone.flex = self.flex
+        clone.width = self.width
+        clone.controllers = self.controllers
+        return clone
+
+    def apply(self, machine, leds, offset):
+        for (controller_leds, controller, controller_offset) in self.leds:
+            controller.apply(machine, controller_leds, offset + controller_offset + controller.offset)
+
+    def assign_leds(self, leds):
+        leds = leds[:]
+
+        self.leds = []
+        total_width = 0
+        total_flex = None
+
+        for controller in self.controllers:
+            if controller.width is not None:
+                total_width += controller.width
+            if controller.flex is not None:
+                total_flex = total_flex + controller.flex if total_flex is not None else controller.flex
+
+        flex_width = 0
+        flex_extra = 0
+
+        if total_flex is not None:
+            remains = len(leds) - total_width
+            if remains > 0:
+                flex_width = math.floor(remains / total_flex)
+                flex_extra = remains - (total_flex * flex_width)
+
+        offset = 0
+
+        while len(leds) > 0:
+            for controller in self.controllers:
+                width = controller.width
+                if width is None:
+                    width = controller.flex * flex_width + flex_extra
+                    flex_extra = 0
+
+                controller_leds = leds[0:width]
+                leds = leds[width:]
+
+                if isinstance(controller, Container):
+                    controller = controller.clone()
+                    controller.assign_leds(controller_leds)
+
+                if len(controller_leds) > 0:
+                    self.leds.append((controller_leds, controller, offset))
+
+            offset += self.offset_adjust
+
+
+class NoopController(Controller):
+    key = "noop"
+    flex = 1
+
+
+class LookupController(Controller):
+    def __init__(self, data):
+        super().__init__(data)
         self.colors = []
 
-    def apply(self, pattern, offset):
-        for led in pattern.leds:
-            self.machine.leds[led] = self.colors[offset % len(self.colors)]
+    def apply(self, machine, leds, offset):
+        for led in leds:
+            machine.leds[led] = self.colors[offset % len(self.colors)]
 
 
-class Colors(LookupPattern):
-    @classmethod
-    def key(cls):
-        return "colors"
+class ColorsController(LookupController):
+    key = "colors"
+    flex = 1
 
-    def __init__(self, animation, data):
-        LookupPattern.__init__(self, animation, data)
+    def __init__(self, data):
+        super().__init__(data)
 
         default_duration = 0
         default_fade = 0
@@ -133,12 +218,15 @@ class Colors(LookupPattern):
                 self.colors.append(mixed)
 
 
-PATTERNS = {
-    p.key(): p
-    for p in [
-        Colors
+CONTROLLERS = {
+    c.key: c
+    for c in [
+        Container,
+        NoopController,
+        ColorsController
     ]
 }
+
 
 parsed_animations = 0
 
@@ -151,35 +239,8 @@ class Animation:
         self.interval = assert_int(data["interval"])
         self.duration = assert_int(data["duration"])
 
-        self.patterns = []
-
-        pattern_count = 0
-        for pattern in assert_list(data["patterns"]):
-            if "repeat" in pattern:
-                pattern_count += assert_int(pattern["repeat"])
-            else:
-                pattern_count += 1
-
-        index = 0
-        for pattern in assert_list(data["patterns"]):
-            instance = Pattern.parse_pattern(self, pattern)
-
-            repeat = 1
-            if "repeat" in pattern:
-                repeat = assert_int(pattern["repeat"])
-
-            offset_adjust = 0
-            if "offsetAdjust" in pattern:
-                offset_adjust = assert_int(pattern["offsetAdjust"])
-
-            offset = 0
-            if "offset" in pattern:
-                offset = assert_int(pattern["offset"])
-
-            for _ in range(repeat):
-                self.patterns.append(Pattern(self, index, pattern_count, offset, instance))
-                offset += offset_adjust
-                index += 1
+        self.controller = Container(data)
+        self.controller.assign_leds(list(range(len(machine.leds))))
 
     def run(self):
         self.machine.leds.fill((0, 0, 0))
@@ -187,8 +248,7 @@ class Animation:
         last = None
 
         for n in range(self.duration):
-            for pattern in self.patterns:
-                pattern.apply(n)
+            self.controller.apply(self.machine, None, n)
 
             if n > 0:
                 now = self.machine.ticks()
@@ -206,9 +266,8 @@ class Animation:
 
 
 def log_counts(log):
-    global parsed_animations, parsed_patterns, parsed_instances
+    global parsed_animations, parsed_controllers
 
-    log.trace("Parsed %s animations with %s patterns and %s pattern instances" % (parsed_animations, parsed_patterns, parsed_instances))
+    log.trace("Parsed %s animations with %s controllers" % (parsed_animations, parsed_controllers))
     parsed_animations = 0
-    parsed_patterns = 0
-    parsed_instances = 0
+    parsed_controllers = 0
