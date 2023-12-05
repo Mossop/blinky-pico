@@ -3,7 +3,7 @@ import json
 import time
 from traceback import print_exception
 
-from blinky import CONFIG, main, Logger
+from blinky import CONFIG, main, Logger, parse_animations
 
 
 class Pixels:
@@ -52,7 +52,7 @@ class DesktopMachine:
     def pull_animations(self):
         with request.urlopen(CONFIG.config) as response:
             data = response.read()
-            return json.loads(data)
+            return parse_animations(self, json.loads(data))
 
 
 main(DesktopMachine())

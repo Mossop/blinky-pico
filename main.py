@@ -6,7 +6,7 @@ from machine import Pin
 from neopixel import NeoPixel
 import _thread
 
-from blinky import CONFIG, Logger, main
+from blinky import CONFIG, Logger, main, parse_animations
 
 
 class Pixels:
@@ -51,7 +51,8 @@ def pull_animations(url, last_etag = None):
                 if "ETag" in response.headers:
                     last_etag = response.headers["ETag"]
 
-                return (response.json(), last_etag)
+                animations = parse_animations(machine, response.json())
+                return (animations, last_etag)
         finally:
             response.close()
 
@@ -106,14 +107,14 @@ class PicoMachine:
 machine = PicoMachine(animations)
 
 
-def poll_config(url, last_etag):
+def poll_animations(url, last_etag):
     while True:
         with machine.log.safe("Polling for new animations"):
-            (data, last_etag) = pull_animations(url, last_etag)
-            if data is not None:
-                machine.animations = data
+            (animations, last_etag) = pull_animations(url, last_etag)
+            if animations is not None:
+                machine.animations = animations
         time.sleep_ms(30000)
 
 
 _thread.start_new_thread(main, (machine,))
-poll_config(CONFIG.config, last_etag)
+poll_animations(CONFIG.config, last_etag)
