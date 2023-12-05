@@ -1,6 +1,7 @@
 import math
+from random import uniform, random
 
-from .color import mix_colors
+from .color import mix_colors, hsv_to_hsl, hsl_to_rgb
 
 def assert_str(val):
     if not isinstance(val, str):
@@ -179,6 +180,16 @@ class CometController(Controller):
             color_pos += adjust
 
 
+class FireController(Controller):
+    key = "fire"
+    flex = 1
+
+    def apply(self, machine, leds, offset):
+        for led in leds:
+            hsv = (uniform(0.0, 50 / 360), 1.0, random())
+            machine.leds[led] = hsl_to_rgb(hsv_to_hsl(hsv))
+
+
 class LookupController(Controller):
     def __init__(self, data):
         super().__init__(data)
@@ -233,7 +244,8 @@ CONTROLLERS = {
         Container,
         NoopController,
         ColorsController,
-        CometController
+        CometController,
+        FireController
     ]
 }
 

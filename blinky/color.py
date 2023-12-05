@@ -1,3 +1,9 @@
+"""Color functions
+
+RGB colors are a tuple with components in the range 0-255.
+HSL colors are a tuple with components in the range 0-1.
+"""
+
 def rgb_to_hsl(color):
     r = color[0] / 255
     g = color[1] / 255
@@ -55,6 +61,30 @@ def hsl_to_rgb(color):
         b = hue2rgb(p, q, h - 1/3)
 
     return (round(r * 255), round(g * 255), round(b * 255))
+
+def hsv_to_hsl(color):
+    (h, s, v) = color
+
+    l = v * (1 - s / 2)
+
+    if l == 0 or l == 1:
+        s = 0
+    else:
+        s = (v - l) / min(l, 1 - l)
+
+    return (h, s, l)
+
+def hsl_to_hsv(color):
+    (h, s, l) = color
+
+    v = l + s * min(l, 1 - l)
+
+    if v == 0:
+        s = 0
+    else:
+        s = 2 * (1 - l / v)
+
+    return (h, s, v)
 
 def mix_colors_by_rgb(a, b, offset):
     def mix_val(a, b, offset):

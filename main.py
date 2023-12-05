@@ -37,8 +37,7 @@ class Pixels:
 
 
 def pull_animations(url, last_etag = None):
-    led = Pin('LED', Pin.OUT)
-    led.value(True)
+    machine.led.value(True)
 
     try:
         headers = {}
@@ -58,16 +57,17 @@ def pull_animations(url, last_etag = None):
 
         return (None, last_etag)
     finally:
-        led.value(False)
+        machine.led.value(False)
 
 
 class PicoMachine:
-    def __init__(self, animations):
+    animations = []
+
+    def __init__(self,):
         self.log = Logger(self)
         self.led = Pin('LED', Pin.OUT)
         self.leds = Pixels(self, CONFIG.leds)
         self.leds.write()
-        self.animations = animations
 
         self.wlan = network.WLAN(network.STA_IF)
         self.led.value(True)
@@ -102,9 +102,11 @@ class PicoMachine:
         self.animations = None
         return animations
 
-
+machine = PicoMachine()
+led = Pin('LED', Pin.OUT)
+led.value(True)
 (animations, last_etag) = pull_animations(CONFIG.config)
-machine = PicoMachine(animations)
+machine.animations = animations
 
 
 def poll_animations(url, last_etag):
