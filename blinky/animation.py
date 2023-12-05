@@ -39,23 +39,6 @@ def assert_color(val):
 parsed_controllers = 0
 
 
-def parse_controller_sizing(controller, data):
-    flex = controller.flex
-    width = controller.width
-
-    if "flex" in data:
-        flex = assert_int(data["flex"])
-        width = None
-    elif "width" in data:
-        width = assert_int(data["width"])
-        flex = None
-
-    if width is None and flex is None:
-        raise Exception("Controller must include either a width or flex")
-
-    return (width, flex)
-
-
 class Controller:
     """A generic controller of a set of leds"""
 
@@ -77,8 +60,7 @@ class Controller:
         if self.width is None and self.flex is None:
             raise Exception("Controller must include either a width or flex")
 
-        if "offset" in data:
-            self.offset = assert_int(data["offset"])
+        self.offset = assert_int(data.get("offset", self.offset))
 
     def apply(self, machine, leds, offset):
         pass
@@ -104,10 +86,7 @@ class Container(Controller):
 
         self.controllers = [Controller.parse_controller(d) for d in assert_list(data["controllers"])]
 
-        if "offsetAdjust" in data:
-            self.offset_adjust = assert_int(data["offsetAdjust"])
-        else:
-            self.offset_adjust = 0
+        self.offset_adjust = assert_int(data.get("offsetAdjust", 0))
 
     def clone(self):
         clone = Container({})
@@ -180,14 +159,9 @@ class CometController(Controller):
         super().__init__(data)
         color = assert_color(data["color"])
 
-        if "trail" in data:
-            self.trail = assert_int(data["trail"])
-
-        if "spacing" in data:
-            self.spacing = assert_int(data["spacing"])
-
-        if "reverse" in data:
-            self.spacing = assert_bool(data["reverse"])
+        self.trail = assert_int(data.get("trail", self.trail))
+        self.spacing = assert_int(data.get("spacing", self.spacing))
+        self.reverse = assert_bool(data.get("reverse", self.reverse))
 
         self.colors = []
         for n in range(self.trail):
@@ -222,13 +196,8 @@ class ColorsController(LookupController):
     def __init__(self, data):
         super().__init__(data)
 
-        default_duration = 0
-        default_fade = 0
-
-        if "duration" in data:
-            default_duration = assert_int(data["duration"])
-        if "fade" in data:
-            default_fade = assert_int(data["fade"])
+        default_duration = assert_int(data.get("duration", 0))
+        default_fade = assert_int(data.get("fade", 0))
 
         color_specs = assert_list(data["colors"])
 
@@ -236,17 +205,14 @@ class ColorsController(LookupController):
             color_spec = color_specs[n]
             next_color_spec = color_specs[(n + 1) % len(color_specs)]
 
-            duration = default_duration
-            fade = default_fade
-
             if isinstance(color_spec, list):
                 color = assert_color(color_spec)
+                duration = default_duration
+                fade = default_fade
             else:
                 color = assert_color(color_spec["color"])
-                if "duration" in color_spec:
-                    duration = assert_int(color_spec["duration"])
-                if "fade" in color_spec:
-                    fade = assert_int(color_spec["fade"])
+                duration = assert_int(color_spec.get("duration", default_duration))
+                fade = assert_int(color_spec.get("fade", default_fade))
 
             if isinstance(next_color_spec, list):
                 next_color = assert_color(next_color_spec)
@@ -280,8 +246,8 @@ class Animation:
         global parsed_animations
         parsed_animations += 1
         self.machine = machine
-        self.interval = assert_int(data["interval"])
-        self.duration = assert_int(data["duration"])
+        self.refresh = assert_int(data.get("refresh", 50))
+        self.duration = assert_int(data.get("duration", math.floor(30000 / self.refresh)))
 
         self.controller = Container(data)
         self.controller.assign_leds(list(range(len(machine.leds))))
@@ -299,11 +265,11 @@ class Animation:
             if n > 0:
                 now = self.machine.ticks()
                 time_spent = self.machine.ticks_diff(now, last)
-                if time_spent > self.interval:
-                    self.machine.log.warn("Patterns took too long to apply (%sms over)" % (time_spent - self.interval))
+                if time_spent > self.refresh:
+                    self.machine.log.warn("Patterns took too long to apply (%sms over)" % (time_spent - self.refresh))
                     last = now
                 else:
-                    self.machine.sleep_ms(self.interval - time_spent)
+                    self.machine.sleep_ms(self.refresh - time_spent)
                     last = self.machine.ticks()
             else:
                 last = self.machine.ticks()
