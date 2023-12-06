@@ -33,9 +33,12 @@ class Pixels:
 
 
 class DesktopMachine:
+    running = True
+
     def __init__(self):
         self.leds = Pixels(self, CONFIG.leds)
         self.log = Logger(self)
+        self.last_data = None
 
     def sleep_ms(self, ms):
         time.sleep(ms / 1000)
@@ -52,6 +55,10 @@ class DesktopMachine:
     def pull_animations(self):
         with request.urlopen(CONFIG.config) as response:
             data = response.read()
+            if self.last_data == data:
+                return None
+
+            self.last_data = data
             return parse_animations(self, json.loads(data))
 
 

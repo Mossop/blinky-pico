@@ -62,6 +62,7 @@ def pull_animations(url, last_etag = None):
 
 class PicoMachine:
     animations = []
+    running = True
 
     def __init__(self,):
         self.log = Logger(self)
@@ -119,4 +120,7 @@ def poll_animations(url, last_etag):
 
 
 _thread.start_new_thread(main, (machine,))
-poll_animations(CONFIG.config, last_etag)
+try:
+    poll_animations(CONFIG.config, last_etag)
+finally:
+    machine.running = False

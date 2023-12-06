@@ -184,9 +184,38 @@ class FireController(Controller):
     key = "fire"
     flex = 1
 
+    min_hue = 0
+    max_hue = 50
+
+    def __init__(self, data):
+        super().__init__(data)
+
+        self.min_hue = assert_int(data.get("minHue", self.min_hue)) / 360
+        self.max_hue = assert_int(data.get("maxHue", self.max_hue)) / 360
+
     def apply(self, machine, leds, offset):
         for led in leds:
-            hsv = (uniform(0.0, 50 / 360), 1.0, random())
+            hsv = (uniform(self.min_hue, self.max_hue), 1.0, random())
+            machine.leds[led] = hsl_to_rgb(hsv_to_hsl(hsv))
+
+
+class WheelController(Controller):
+    key = "wheel"
+    flex = 1
+    length = 50
+    duration = 120
+
+    def __init__(self, data):
+        super().__init__(data)
+
+    def apply(self, machine, leds, offset):
+        v = abs((offset % self.duration) - (self.duration / 2)) / (self.duration / 2)
+
+        for n in range(len(leds)):
+            led = leds[n]
+            h = ((n + offset) % self.length) / self.length
+
+            hsv = (h, 1.0, v)
             machine.leds[led] = hsl_to_rgb(hsv_to_hsl(hsv))
 
 
@@ -245,7 +274,8 @@ CONTROLLERS = {
         NoopController,
         ColorsController,
         CometController,
-        FireController
+        FireController,
+        WheelController
     ]
 }
 
@@ -271,6 +301,9 @@ class Animation:
         last = None
 
         for n in range(self.duration):
+            if not self.machine.running:
+                return
+
             self.controller.apply(self.machine, None, self.offset)
             self.offset += 1
 

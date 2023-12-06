@@ -4,6 +4,30 @@ RGB colors are a tuple with components in the range 0-255.
 HSL colors are a tuple with components in the range 0-1.
 """
 
+def cubic_bezier(x1, y1, x2, y2):
+    def timing(input):
+        if x1 == y1 and x2 == y2:
+            return input
+
+        if input == 0.0:
+            return 0.0
+
+        if input == 1.0:
+            return 1.0
+
+        return input
+
+    return timing
+
+
+EASING = {
+    "ease": cubic_bezier(0.25, 0.1, 0.25, 1.0),
+    "linear": cubic_bezier(0.0, 0.0, 1.0, 1.0),
+    "ease-in": cubic_bezier(0.42, 0, 1.0, 1.0),
+    "ease-out": cubic_bezier(0, 0, 0.58, 1.0),
+    "ease-in-out": cubic_bezier(0.42, 0, 0.58, 1.0)
+}
+
 def rgb_to_hsl(color):
     r = color[0] / 255
     g = color[1] / 255

@@ -9,22 +9,25 @@ def parse_animations(machine, json):
     log_counts(machine.log)
     return parsed
 
-def main(machine, loops = 0):
-    count = 0
+def main(machine):
     animations = None
+    animation_index = 0
 
-    while count < loops or loops == 0:
+    while machine.running:
         with machine.log.safe("Updating animations"):
             new_animations = machine.pull_animations()
             if new_animations is not None:
                 animations = new_animations
+                animation_index = 0
 
         if animations is not None:
-            for n in range(len(animations)):
-                with machine.log.safe("Running animation %s" % n):
-                    animations[n].run()
+            animation = animations[animation_index]
+            with machine.log.safe("Running animation %s" % animation_index):
+                animation.run()
+
+            animation_index = (animation_index + 1) % len(animations)
         else:
             sleep(30)
 
-        if loops > 0:
-            count += 1
+    machine.leds.fill((0, 0, 0))
+    machine.leds.write()
